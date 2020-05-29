@@ -2,17 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/compiler/backend/code-generator.h"
-
 #include "src/codegen/assembler-inl.h"
 #include "src/codegen/callable.h"
 #include "src/codegen/macro-assembler.h"
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/compiler/backend/code-generator-impl.h"
+#include "src/compiler/backend/code-generator.h"
 #include "src/compiler/backend/gap-resolver.h"
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/osr.h"
-#include "src/heap/heap-inl.h"  // crbug.com/v8/8499
+#include "src/heap/memory-chunk.h"
 #include "src/wasm/wasm-code-manager.h"
 #include "src/wasm/wasm-objects.h"
 
@@ -3854,10 +3853,10 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       break;
     }
     // vector boolean unops
-    case kS390_S1x2AnyTrue:
-    case kS390_S1x4AnyTrue:
-    case kS390_S1x8AnyTrue:
-    case kS390_S1x16AnyTrue: {
+    case kS390_V64x2AnyTrue:
+    case kS390_V32x4AnyTrue:
+    case kS390_V16x8AnyTrue:
+    case kS390_V8x16AnyTrue: {
       Simd128Register src = i.InputSimd128Register(0);
       Register dst = i.OutputRegister();
       Register temp = i.TempRegister(0);
@@ -3880,19 +3879,19 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
   __ vtm(kScratchDoubleReg, kScratchDoubleReg, Condition(0), Condition(0),     \
          Condition(0));                                                        \
   __ locgr(Condition(8), dst, temp);
-    case kS390_S1x2AllTrue: {
+    case kS390_V64x2AllTrue: {
       SIMD_ALL_TRUE(3)
       break;
     }
-    case kS390_S1x4AllTrue: {
+    case kS390_V32x4AllTrue: {
       SIMD_ALL_TRUE(2)
       break;
     }
-    case kS390_S1x8AllTrue: {
+    case kS390_V16x8AllTrue: {
       SIMD_ALL_TRUE(1)
       break;
     }
-    case kS390_S1x16AllTrue: {
+    case kS390_V8x16AllTrue: {
       SIMD_ALL_TRUE(0)
       break;
     }
@@ -4186,6 +4185,38 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
 #endif
       break;
     }
+    case kS390_I32x4BitMask: {
+      __ lgfi(kScratchReg, Operand(0x204060));
+      __ aih(kScratchReg, Operand(0x80808080));  // Zeroing the high bits
+      __ vlvg(kScratchDoubleReg, kScratchReg, MemOperand(r0, 1), Condition(3));
+      __ vbperm(kScratchDoubleReg, i.InputSimd128Register(0), kScratchDoubleReg,
+                Condition(0), Condition(0), Condition(0));
+      __ vlgv(i.OutputRegister(), kScratchDoubleReg, MemOperand(r0, 7),
+              Condition(0));
+      break;
+    }
+    case kS390_I16x8BitMask: {
+      __ lgfi(kScratchReg, Operand(0x40506070));
+      __ aih(kScratchReg, Operand(0x102030));
+      __ vlvg(kScratchDoubleReg, kScratchReg, MemOperand(r0, 1), Condition(3));
+      __ vbperm(kScratchDoubleReg, i.InputSimd128Register(0), kScratchDoubleReg,
+                Condition(0), Condition(0), Condition(0));
+      __ vlgv(i.OutputRegister(), kScratchDoubleReg, MemOperand(r0, 7),
+              Condition(0));
+      break;
+    }
+    case kS390_I8x16BitMask: {
+      __ lgfi(r0, Operand(0x60687078));
+      __ aih(r0, Operand(0x40485058));
+      __ lgfi(ip, Operand(0x20283038));
+      __ aih(ip, Operand(0x81018));
+      __ vlvgp(kScratchDoubleReg, ip, r0);
+      __ vbperm(kScratchDoubleReg, i.InputSimd128Register(0), kScratchDoubleReg,
+                Condition(0), Condition(0), Condition(0));
+      __ vlgv(i.OutputRegister(), kScratchDoubleReg, MemOperand(r0, 3),
+              Condition(1));
+      break;
+    }
     case kS390_StoreCompressTagged: {
       CHECK(!instr->HasOutput());
       size_t index = 0;
@@ -4285,7 +4316,7 @@ void CodeGenerator::AssembleArchTrap(Instruction* instr,
         __ PrepareCallCFunction(0, 0, cp);
         __ CallCFunction(
             ExternalReference::wasm_call_trap_callback_for_testing(), 0);
-        __ LeaveFrame(StackFrame::WASM_COMPILED);
+        __ LeaveFrame(StackFrame::WASM);
         auto call_descriptor = gen_->linkage()->GetIncomingDescriptor();
         int pop_count =
             static_cast<int>(call_descriptor->StackParameterCount());
