@@ -233,7 +233,7 @@ if defined noprojgen if defined nobuild goto :after-build
 set msvs_host_arch=x86
 if _%PROCESSOR_ARCHITECTURE%_==_AMD64_ set msvs_host_arch=amd64
 if _%PROCESSOR_ARCHITEW6432%_==_AMD64_ set msvs_host_arch=amd64
-if _%PROCESSOR_ARCHITECTURE%_==_AMD64_ set msvs_host_arch=arm64
+if _%PROCESSOR_ARCHITECTURE%_==_ARM64_ set msvs_host_arch=arm64
 @rem usually vcvarsall takes an argument: host + '_' + target
 set vcvarsall_arg=%msvs_host_arch%_%target_arch%
 @rem unless both host and target are x64
