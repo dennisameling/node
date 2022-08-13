@@ -198,7 +198,6 @@ if defined target_arch      set configure_flags=%configure_flags% --dest-cpu=%ta
 if defined openssl_no_asm   set configure_flags=%configure_flags% --openssl-no-asm
 if defined DEBUG_HELPER     set configure_flags=%configure_flags% --verbose
 if "%target_arch%"=="x86" if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set configure_flags=%configure_flags% --no-cross-compiling
-if "%target_arch%"=="arm64" set configure_flags=%configure_flags% --cross-compiling
 
 if not exist "%~dp0deps\icu" goto no-depsicu
 if "%target%"=="Clean" echo deleting %~dp0deps\icu
@@ -234,12 +233,15 @@ if defined noprojgen if defined nobuild goto :after-build
 set msvs_host_arch=x86
 if _%PROCESSOR_ARCHITECTURE%_==_AMD64_ set msvs_host_arch=amd64
 if _%PROCESSOR_ARCHITEW6432%_==_AMD64_ set msvs_host_arch=amd64
+if _%PROCESSOR_ARCHITECTURE%_==_AMD64_ set msvs_host_arch=arm64
 @rem usually vcvarsall takes an argument: host + '_' + target
 set vcvarsall_arg=%msvs_host_arch%_%target_arch%
 @rem unless both host and target are x64
 if %target_arch%==x64 if %msvs_host_arch%==amd64 set vcvarsall_arg=amd64
 @rem also if both are x86
 if %target_arch%==x86 if %msvs_host_arch%==x86 set vcvarsall_arg=x86
+@rem also if both are arm64
+if %target_arch%==arm64 if %msvs_host_arch%==arm64 set vcvarsall_arg=arm64
 
 @rem Look for Visual Studio 2022
 :vs-set-2022
